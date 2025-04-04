@@ -1,3 +1,4 @@
+import Dependencies
 import SwiftUI
 
 extension Binding {
@@ -185,9 +186,13 @@ extension NavigationStack {
   }
 }
 
+extension EnvironmentValues {
+    @Entry var stackElementGeneration: Int = 0
+}
+
 @available(iOS 16, macOS 13, tvOS 16, watchOS 9, *)
 public struct _NavigationDestinationViewModifier<
-  State: ObservableState, Action, Destination: View
+  State: ObservableState & Identifiable, Action, Destination: View
 >:
   ViewModifier
 {
@@ -204,6 +209,7 @@ public struct _NavigationDestinationViewModifier<
       .navigationDestination(for: StackState<State>.Component.self) { component in
         navigationDestination(component: component)
           .environment(\.navigationDestinationType, State.self)
+          .environment(\.stackElementGeneration, component.id.generation + 1)
       }
   }
 
@@ -243,6 +249,60 @@ public struct _NavigationDestinationViewModifier<
 }
 
 @available(iOS 16, macOS 13, tvOS 16, watchOS 9, *)
+public struct MyNavigationLink<Label, P: Identifiable>: View where Label : View {
+  @Environment(\.stackElementGeneration) var stackElementGeneration: Int
+  let state: P?
+  let label: Label
+  let fileID: StaticString
+  let filePath: StaticString
+  let line: UInt
+  let column: UInt
+
+  public  init(
+    state: P? = nil,
+    @ViewBuilder label: () -> Label,
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) {
+    self.state = state
+    self.label = label()
+    self.fileID = fileID
+    self.filePath = filePath
+    self.line = line
+    self.column = column
+  }
+
+  public var body: some View {
+    NavigationLink(
+      value: state.map { StackState.Component(id: .init(generation: stackElementGeneration, elementIdentifier: $0.id), element: $0) }
+    ) {
+      _NavigationLinkStoreContent<P, Label>(
+        state: state,
+        label: { label },
+        fileID: fileID,
+        filePath: filePath,
+        line: line,
+        column: column
+      )
+    }
+  }
+
+  public init(
+    _ titleKey: LocalizedStringKey,
+    state: P?,
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  )
+  where Label == Text {
+    self.init(state: state, label: { Text(titleKey) }, fileID: fileID, filePath: filePath, line: line, column: column)
+  }
+}
+
+@available(iOS 16, macOS 13, tvOS 16, watchOS 9, *)
 extension NavigationLink where Destination == Never {
   /// Creates a navigation link that presents the view corresponding to an element of
   /// ``StackState``.
@@ -264,7 +324,7 @@ extension NavigationLink where Destination == Never {
   #if compiler(>=6)
     @MainActor
   #endif
-  public init<P, L: View>(
+  public init<P: Identifiable, L: View>(
     state: P?,
     @ViewBuilder label: () -> L,
     fileID: StaticString = #fileID,
@@ -274,7 +334,11 @@ extension NavigationLink where Destination == Never {
   )
   where Label == _NavigationLinkStoreContent<P, L> {
     @Dependency(\.stackElementID) var stackElementID
-    self.init(value: state.map { StackState.Component(id: stackElementID(), element: $0) }) {
+    self.init(value: state.map {
+      let id = stackElementID(for: $0.id)
+      print(id)
+      return StackState.Component(id: id, element: $0) }
+    ) {
       _NavigationLinkStoreContent<P, L>(
         state: state,
         label: label,
@@ -305,7 +369,7 @@ extension NavigationLink where Destination == Never {
   #if compiler(>=6)
     @MainActor
   #endif
-  public init<P>(
+  public init<P: Identifiable>(
     _ titleKey: LocalizedStringKey, state: P?, fileID: StaticString = #fileID, line: UInt = #line
   )
   where Label == _NavigationLinkStoreContent<P, Text> {
@@ -331,7 +395,7 @@ extension NavigationLink where Destination == Never {
     @MainActor
   #endif
   @_disfavoredOverload
-  public init<S: StringProtocol, P>(
+  public init<S: StringProtocol, P: Identifiable>(
     _ title: S, state: P?, fileID: StaticString = #fileID, line: UInt = #line
   )
   where Label == _NavigationLinkStoreContent<P, Text> {
@@ -502,11 +566,12 @@ extension StackState {
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.id == rhs.id
+      lhs.id == rhs.id && lhs.element.id == rhs.element.id
     }
 
     public func hash(into hasher: inout Hasher) {
       hasher.combine(self.id)
+      hasher.combine(self.element.id)
     }
   }
 
