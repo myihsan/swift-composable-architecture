@@ -1,3 +1,4 @@
+import Dependencies
 import SwiftUI
 
 extension Binding {
@@ -170,17 +171,30 @@ extension NavigationStack {
         column: column
       ]
     ) {
-      root()
-        .modifier(
-          _NavigationDestinationViewModifier(
-            store: path.wrappedValue,
-            destination: destination,
-            fileID: fileID,
-            filePath: filePath,
-            line: line,
-            column: column
-          )
+      let next = LockIsolated(StackElementID(generation: 0))
+      withDependencies {
+        $0.stackElementID = .init(
+          next: {
+//            defer {
+//              next.withValue { $0 = StackElementID(generation: $0.generation + 1) }
+//            }
+            return next.value
+          },
+          peek: { next.value }
         )
+      } operation: {
+        root()
+          .modifier(
+            _NavigationDestinationViewModifier(
+              store: path.wrappedValue,
+              destination: destination,
+              fileID: fileID,
+              filePath: filePath,
+              line: line,
+              column: column
+            )
+          )
+      }
     }
   }
 }
@@ -202,8 +216,22 @@ public struct _NavigationDestinationViewModifier<
     content
       .environment(\.navigationDestinationType, State.self)
       .navigationDestination(for: StackState<State>.Component.self) { component in
-        navigationDestination(component: component)
-          .environment(\.navigationDestinationType, State.self)
+        let generation = component.id.generation * 10
+        let next = LockIsolated(StackElementID(generation: generation))
+        withDependencies {
+          $0.stackElementID = .init(
+            next: {
+//              defer {
+//                next.withValue { $0 = StackElementID(generation: $0.generation + 1) }
+//              }
+              return next.value
+            },
+            peek: { next.value }
+          )
+        } operation: {
+          navigationDestination(component: component)
+            .environment(\.navigationDestinationType, State.self)
+        }
       }
   }
 

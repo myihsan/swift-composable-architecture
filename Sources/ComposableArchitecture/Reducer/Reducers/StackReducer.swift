@@ -190,7 +190,7 @@ extension StackState: RandomAccessCollection, RangeReplaceableCollection {
   ) {
     self._dictionary.removeSubrange(subrange)
     for (offset, element) in zip(subrange.lowerBound..., newElements) {
-      self._dictionary.updateValue(element, forKey: self.stackElementID.next(), insertingAt: offset)
+      self._dictionary.updateValue(element, forKey: .init(generation: offset), insertingAt: offset)
     }
   }
 }
