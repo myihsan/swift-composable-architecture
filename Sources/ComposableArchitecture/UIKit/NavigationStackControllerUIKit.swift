@@ -91,7 +91,7 @@
     ///   - filePath: The source `#filePath` associated with the push.
     ///   - line: The source `#line` associated with the push.
     ///   - column: The source `#column` associated with the push.
-    public func callAsFunction<Element: Hashable>(
+    public func callAsFunction<Element: Identifiable>(
       state: Element,
       fileID: StaticString = #fileID,
       filePath: StaticString = #filePath,
@@ -100,7 +100,7 @@
     ) {
       @Dependency(\.stackElementID) var stackElementID
       self(
-        value: StackState.Component(id: stackElementID(), element: state),
+        value: StackState.Component(id: stackElementID(for: state.id), element: state),
         fileID: fileID,
         filePath: filePath,
         line: line,

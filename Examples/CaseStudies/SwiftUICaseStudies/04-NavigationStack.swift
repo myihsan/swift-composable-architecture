@@ -34,7 +34,7 @@ struct NavigationDemo {
         return .none
 
       case .goToABCButtonTapped:
-        state.path.append(.screenA(ScreenA.State()))
+        state.path.append(.screenA(ScreenA.State(id: 2)))
         state.path.append(.screenB(ScreenB.State()))
         state.path.append(.screenC(ScreenC.State()))
         return .none
@@ -42,7 +42,7 @@ struct NavigationDemo {
       case let .path(action):
         switch action {
         case .element(id: _, action: .screenB(.screenAButtonTapped)):
-          state.path.append(.screenA(ScreenA.State()))
+          state.path.append(.screenA(ScreenA.State(id: 1)))
           return .none
 
         case .element(id: _, action: .screenB(.screenBButtonTapped)):
@@ -67,6 +67,19 @@ struct NavigationDemo {
 }
 extension NavigationDemo.Path.State: Equatable {}
 
+extension NavigationDemo.Path.State: Identifiable {
+  var id: AnyHashable {
+    switch self {
+    case let .screenA(state):
+      return [AnyHashable("screenA"), AnyHashable(state.id)]
+    case .screenB:
+      return "screenB"
+    case .screenC:
+      return "screenC"
+    }
+  }
+}
+
 struct NavigationDemoView: View {
   @Bindable var store: StoreOf<NavigationDemo>
 
@@ -78,7 +91,11 @@ struct NavigationDemoView: View {
         Section {
           NavigationLink(
             "Go to screen A",
-            state: NavigationDemo.Path.State.screenA(ScreenA.State())
+            state: NavigationDemo.Path.State.screenA(ScreenA.State(id: 1))
+          )
+          NavigationLink(
+            "Go to screen A2",
+            state: NavigationDemo.Path.State.screenA(ScreenA.State(id: 2))
           )
           NavigationLink(
             "Go to screen B",
@@ -91,7 +108,7 @@ struct NavigationDemoView: View {
         }
 
         Section {
-          Button("Go to A → B → C") {
+          Button("Go to A2 → B → C") {
             store.send(.goToABCButtonTapped)
           }
         }
@@ -180,7 +197,8 @@ struct FloatingMenuView: View {
 @Reducer
 struct ScreenA {
   @ObservableState
-  struct State: Equatable {
+  struct State: Equatable, Identifiable {
+    let id: Int
     var count = 0
     var fact: String?
     var isLoading = false
@@ -288,15 +306,15 @@ struct ScreenAView: View {
       }
 
       Section {
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen A",
-          state: NavigationDemo.Path.State.screenA(ScreenA.State(count: store.count))
+          state: NavigationDemo.Path.State.screenA(ScreenA.State(id: 1, count: store.count))
         )
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen B",
           state: NavigationDemo.Path.State.screenB(ScreenB.State())
         )
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen C",
           state: NavigationDemo.Path.State.screenC(ScreenC.State(count: store.count))
         )
@@ -426,15 +444,15 @@ struct ScreenCView: View {
       }
 
       Section {
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen A",
-          state: NavigationDemo.Path.State.screenA(ScreenA.State(count: store.count))
+          state: NavigationDemo.Path.State.screenA(ScreenA.State(id: 1, count: store.count))
         )
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen B",
           state: NavigationDemo.Path.State.screenB(ScreenB.State())
         )
-        NavigationLink(
+        MyNavigationLink(
           "Go to screen C",
           state: NavigationDemo.Path.State.screenC(ScreenC.State())
         )

@@ -8,55 +8,41 @@ extension DependencyValues {
 }
 
 @_spi(Internals) public struct StackElementIDGenerator: DependencyKey, Sendable {
-  public let next: @Sendable () -> StackElementID
-  public let peek: @Sendable () -> StackElementID
+  public let next: @Sendable (AnyHashable) -> StackElementID
+  public let peek: @Sendable (AnyHashable) -> StackElementID
 
   @_spi(Internals)
-  public func callAsFunction() -> StackElementID {
-    self.next()
+  public func callAsFunction(for elementIdentifier: AnyHashable) -> StackElementID {
+    self.next(elementIdentifier)
   }
 
   public static var liveValue: Self {
-    let next = LockIsolated(StackElementID(generation: 0))
+    let nextGeneration = LockIsolated(0)
     return Self(
       next: {
-        defer {
-          next.withValue { $0 = StackElementID(generation: $0.generation + 1) }
-        }
-        return next.value
+//        defer {
+//          nextGeneration.withValue { $0 += 1 }
+//        }
+        return .init(generation: nextGeneration.value, elementIdentifier: $0)
       },
-      peek: { next.value }
-    )
-  }
-
-  public static var testValue: Self {
-    let next = LockIsolated(StackElementID(generation: 0))
-    return Self(
-      next: {
-        defer {
-          next.withValue {
-            $0 = StackElementID(generation: $0.generation + 1)
-          }
-        }
-        return next.value
-      },
-      peek: { next.value }
+      peek: { .init(generation: nextGeneration.value, elementIdentifier: $0)}
     )
   }
 
   func incrementingCopy() -> Self {
-    let peek = self.peek()
-    let next = LockIsolated(StackElementID(generation: peek.generation))
-    return Self(
-      next: {
-        defer {
-          next.withValue {
-            $0 = StackElementID(generation: $0.generation + 1)
-          }
-        }
-        return next.value
-      },
-      peek: { next.value }
-    )
+    fatalError()
+//    let peek = self.peek()
+//    let next = LockIsolated(StackElementID(generation: peek.generation))
+//    return Self(
+//      next: {
+//        defer {
+//          next.withValue {
+//            $0 = StackElementID(generation: $0.generation + 1)
+//          }
+//        }
+//        return next.value
+//      },
+//      peek: { next.value }
+//    )
   }
 }

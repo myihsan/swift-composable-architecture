@@ -13,7 +13,7 @@ import OrderedCollections
 /// using ``StackState`` for navigation stacks. Also see
 /// <doc:StackBasedNavigation#StackState-vs-NavigationPath> to understand how ``StackState``
 /// compares to SwiftUI's `NavigationPath` type.
-public struct StackState<Element> {
+public struct StackState<Element: Identifiable> {
   var _dictionary: OrderedDictionary<StackElementID, Element>
   fileprivate var _mounted: OrderedSet<StackElementID> = []
 
@@ -190,7 +190,14 @@ extension StackState: RandomAccessCollection, RangeReplaceableCollection {
   ) {
     self._dictionary.removeSubrange(subrange)
     for (offset, element) in zip(subrange.lowerBound..., newElements) {
-      self._dictionary.updateValue(element, forKey: .init(generation: offset), insertingAt: offset)
+      self._dictionary.updateValue(
+        element,
+        forKey: .init(
+          generation: offset,
+          elementIdentifier: element.id
+        ),
+        insertingAt: offset
+      )
     }
   }
 }
@@ -377,7 +384,7 @@ extension Reducer {
   @inlinable
   @warn_unqualified_access
   public func forEach<
-    DestinationState, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
+    DestinationState: Identifiable, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
   >(
     _ toStackState: WritableKeyPath<State, StackState<DestinationState>>,
     action toStackAction: CaseKeyPath<Action, StackAction<DestinationState, DestinationAction>>,
@@ -426,7 +433,7 @@ extension Reducer {
   @inlinable
   @warn_unqualified_access
   public func forEach<
-    DestinationState, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
+    DestinationState: Identifiable, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
   >(
     _ toStackState: WritableKeyPath<State, StackState<DestinationState>>,
     action toStackAction: AnyCasePath<Action, StackAction<DestinationState, DestinationAction>>,
@@ -464,7 +471,7 @@ extension Reducer {
 /// ```
 public typealias StackActionOf<R: Reducer> = StackAction<R.State, R.Action>
 
-public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
+public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer where Destination.State: Identifiable {
   let base: Base
   let toStackState: WritableKeyPath<Base.State, StackState<Destination.State>>
   let toStackAction: AnyCasePath<Base.Action, StackAction<Destination.State, Destination.Action>>
@@ -601,7 +608,7 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
         baseEffects = self.base.reduce(into: &state, action: action)
         break
       } else if DependencyValues._current.context == .test {
-        let nextID = DependencyValues._current.stackElementID.peek()
+        let nextID = DependencyValues._current.stackElementID.peek(element.id)
         if id.generation > nextID.generation {
           reportIssue(
             """
@@ -619,7 +626,7 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
             column: column
           )
         } else if id.generation == nextID.generation {
-          _ = DependencyValues._current.stackElementID.next()
+          _ = DependencyValues._current.stackElementID.next(element.id)
         }
       }
       state[keyPath: self.toStackState]._dictionary[id] = element
@@ -707,11 +714,13 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
 /// Notice that after removing all elements and appending a new element, the ID generated was 2 and
 /// did not go back to 0. This is because in tests the IDs are _generational_, which means they
 /// keep counting up, even if you remove elements from the stack.
-public struct StackElementID: Hashable, Sendable {
+public struct StackElementID: Hashable, @unchecked Sendable {
   @_spi(Internals) public var generation: Int
+  @_spi(Internals) public var elementIdentifier: AnyHashable?
 
-  @_spi(Internals) public init(generation: Int) {
+  @_spi(Internals) public init(generation: Int, elementIdentifier: AnyHashable?) {
     self.generation = generation
+    self.elementIdentifier = elementIdentifier
   }
 }
 
@@ -727,22 +736,22 @@ extension StackElementID: CustomDumpStringConvertible {
   }
 }
 
-extension StackElementID: ExpressibleByIntegerLiteral {
-  public init(integerLiteral value: Int) {
-    if !isTesting {
-      fatalError(
-        """
-        Specifying stack element IDs by integer literal is not allowed outside of tests.
-
-        In tests, integer literal stack element IDs can be used as a shorthand to the \
-        auto-incrementing generation of the current dependency context. This can be useful when \
-        asserting against actions received by a specific element.
-        """
-      )
-    }
-    self.init(generation: value)
-  }
-}
+//extension StackElementID: ExpressibleByIntegerLiteral {
+//  public init(integerLiteral value: Int) {
+//    if !isTesting {
+//      fatalError(
+//        """
+//        Specifying stack element IDs by integer literal is not allowed outside of tests.
+//
+//        In tests, integer literal stack element IDs can be used as a shorthand to the \
+//        auto-incrementing generation of the current dependency context. This can be useful when \
+//        asserting against actions received by a specific element.
+//        """
+//      )
+//    }
+//    self.init(generation: value)
+//  }
+//}
 
 private struct NavigationDismissID: Hashable, Sendable {
   private let elementID: AnyHashableSendable

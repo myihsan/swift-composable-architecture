@@ -61,6 +61,12 @@ private struct SignUpFeature {
   }
 }
 
+extension SignUpFeature.Path.State: Identifiable {
+  var id: AnyHashable {
+    0
+  }
+}
+
 struct SignUpFlow: View {
   @Bindable private var store = Store(
     initialState: SignUpFeature.State(signUpData: Shared(value: SignUpData()))
